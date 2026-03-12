@@ -1,0 +1,12 @@
+{
+  "name": "ollama-chat-web",
+  "version": "1.0.0",
+  "description": "Ollama Chat Web Interface",
+  "main": "app.py",
+  "scripts": {
+    "start": "python app.py"
+  },
+  "dependencies": {
+    "flask": "^3.0.0"
+  }
+}

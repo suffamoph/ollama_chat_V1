@@ -1,0 +1,988 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ollama Chat - gemma3</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f8f9fa;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .chat-container {
+            width: 100%;
+            max-width: 800px;
+            height: 90vh;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            background: white;
+            color: #333;
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .thinking-switch {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #666;
+            user-select: none;
+        }
+
+        .thinking-label {
+            font-weight: 600;
+        }
+
+        .switch {
+            position: relative;
+            width: 40px;
+            height: 22px;
+            display: inline-block;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #cfd4dc;
+            transition: .2s;
+            border-radius: 999px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            top: 3px;
+            background-color: white;
+            transition: .2s;
+            border-radius: 50%;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+
+        .switch input:checked + .slider {
+            background-color: #7c8a9f;
+        }
+
+        .switch input:checked + .slider:before {
+            transform: translateX(18px);
+        }
+
+        .switch input:focus + .slider {
+            box-shadow: 0 0 0 2px rgba(124, 138, 159, 0.25);
+        }
+
+        .switch input:hover + .slider {
+            filter: brightness(0.98);
+        }
+
+        .switch input {
+            cursor: pointer;
+        }
+
+        .model-selector {
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: nowrap;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .model-selector label {
+            color: #666;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .custom-model-select {
+            position: relative;
+            min-width: 360px;
+            width: 46vw;
+            max-width: 520px;
+            text-align: left;
+        }
+
+        .model-select-btn {
+            width: 100%;
+            border: 1px solid #d7d7d7;
+            border-radius: 12px;
+            background: #fff;
+            color: #333;
+            padding: 8px 10px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            justify-content: flex-start;
+            cursor: pointer;
+            text-align: left;
+            transition: border-color 0.2s ease;
+        }
+
+        .model-select-btn .model-name {
+            flex: 1;
+            display: block;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            text-align: left;
+        }
+
+        .model-select-btn .model-capability {
+            width: auto;
+        }
+
+        .model-select-btn:hover {
+            border-color: #bcbcbc;
+        }
+
+        .model-select-btn.open {
+            border-color: #a5a5a5;
+        }
+
+        .model-source-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .source-ollama {
+            background: #d7f3ee;
+            color: #0f766e;
+        }
+
+        .source-api {
+            background: #fff4cc;
+            color: #92400e;
+        }
+
+        .model-name {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .model-caret {
+            color: #666;
+            flex-shrink: 0;
+        }
+
+        .model-menu {
+            display: none;
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            right: 0;
+            z-index: 30;
+            background: #fff;
+            border: 1px solid #d7d7d7;
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+            max-height: 260px;
+            overflow-y: auto;
+        }
+
+        .model-menu.show {
+            display: block;
+        }
+
+        .model-option {
+            width: 100%;
+            border: none;
+            border-bottom: 1px solid #f2f2f2;
+            background: #fff;
+            color: #333;
+            padding: 10px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            justify-content: flex-start;
+            cursor: pointer;
+            text-align: left;
+        }
+
+        .model-option .model-name {
+            flex: 0;
+            min-width: auto;
+            overflow: visible;
+            text-overflow: clip;
+            white-space: nowrap;
+        }
+
+        @media (max-width: 900px) {
+            .custom-model-select {
+                min-width: 0;
+                width: 100%;
+                max-width: 100%;
+            }
+
+            .model-selector {
+                width: 100%;
+            }
+        }
+
+        .model-option:last-child {
+            border-bottom: none;
+        }
+
+        .model-option:hover {
+            background: #f6f7f9;
+        }
+
+        .model-option.active {
+            background: #f1f3f5;
+        }
+
+        .chat-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: white;
+        }
+
+        .message {
+            padding: 12px 16px;
+            border-radius: 15px;
+            margin-bottom: 10px;
+            max-width: 85%;
+            word-wrap: break-word;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .user-message {
+            background: #f0f0f0;
+            color: #333;
+            white-space: pre-wrap;
+            padding: 15px 20px;
+            border-radius: 20px;
+            border-left: 4px solid #ff9800;
+            margin-left: auto;
+            max-width: 80%;
+        }
+
+        .user-message img {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 10px;
+            margin-top: 10px;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .user-message img:hover {
+            transform: scale(1.05);
+        }
+
+        .ai-message {
+            background: #fafafa;
+            color: #333;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            padding: 15px 20px;
+            border-radius: 20px;
+            border-left: 4px solid #ddd;
+            margin-right: auto;
+            max-width: 80%;
+        }
+
+        .initial-message {
+            padding: 10px 14px !important;
+            border-radius: 14px !important;
+            font-size: 14px !important;
+        }
+
+        .ai-message img {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 10px;
+            margin-top: 10px;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .ai-message img:hover {
+            transform: scale(1.05);
+        }
+
+        .ai-metrics {
+            margin-top: -12px;
+            margin-bottom: 20px;
+            margin-right: auto;
+            max-width: 80%;
+            padding: 2px 2px;
+            color: #7a7a7a;
+            font-size: 11px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            line-height: 1.4;
+        }
+
+        .metrics-source-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 1px 6px;
+            border-radius: 999px;
+            font-size: 10px;
+            font-weight: 600;
+            background: #eceff3;
+            color: #4b5563;
+        }
+
+        .loading {
+            color: #ff9800;
+            font-style: italic;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .chat-footer {
+            background: white;
+            padding: 15px 20px;
+            border-top: 2px solid #f0f0f0;
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .file-input-wrapper input[type=file] {
+            font-size: 100px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .upload-btn {
+            background: #ff9800;
+            color: white;
+            border: none;
+            width: 44px;
+            height: 44px;
+            padding: 0;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 26px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .upload-btn:hover {
+            background: #f57c00;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 152, 0, 0.2);
+        }
+
+        .user-input-wrapper {
+            flex: 1;
+            position: relative;
+        }
+
+        #userInput {
+            width: 100%;
+            padding: 15px 20px;
+            border: 2px solid #e8e8e8;
+            border-radius: 15px;
+            font-family: inherit;
+            font-size: 16px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            outline: none;
+            resize: vertical;
+            overflow-y: auto;
+            min-height: 40px;
+            max-height: 200px;
+        }
+
+        #userInput:focus {
+            border-color: #ff9800;
+        }
+
+        .send-btn {
+            background: #ff9800;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .send-btn:hover {
+            background: #f57c00;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 152, 0, 0.2);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .image-preview-wrapper {
+            position: relative;
+            width: 100px;
+            height: 100px;
+            margin-top: 10px;
+            display: none;
+        }
+
+        #imagePreview {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 10px;
+            display: block;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        #imagePreview:hover {
+            transform: scale(1.03);
+        }
+
+        .clear-image-btn {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            width: 22px;
+            height: 22px;
+            border: none;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.75);
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+
+        .image-preview-wrapper:hover .clear-image-btn {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* Image Modal Styles */
+        .image-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .image-modal.show {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            position: relative;
+            max-width: 90%;
+            max-height: 90%;
+        }
+
+        .modal-content img {
+            max-width: 100%;
+            max-height: 80vh;
+            border-radius: 10px;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: -40px;
+            right: 0;
+            color: white;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .modal-close:hover {
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="model-selector">
+                <label for="modelSelectBtn">选择模型：</label>
+                <div class="custom-model-select" id="customModelSelect">
+                    <button id="modelSelectBtn" class="model-select-btn" type="button" onclick="toggleModelMenu()">
+                        <span class="model-source-badge" id="selectedModelSource">Ollama</span>
+                        <span class="model-name" id="selectedModelName">⏳ 加载模型列表中...</span>
+                        <span class="model-caret">▾</span>
+                    </button>
+                    <div class="model-menu" id="modelMenu"></div>
+                </div>
+            </div>
+
+            <div class="header-controls">
+                <label class="thinking-switch" for="thinkingToggle">
+                    <span class="thinking-label">思考模式</span>
+                    <span class="switch">
+                        <input type="checkbox" id="thinkingToggle" onchange="onThinkingToggleChange(this.checked)">
+                        <span class="slider"></span>
+                    </span>
+                </label>
+            </div>
+        </div>
+
+        <div class="chat-body" id="messagesContainer">
+            <div class="message ai-message initial-message">
+                👋 你好！我是 gemma3，有什么可以帮你的？
+            </div>
+        </div>
+
+        <div class="chat-footer">
+            <div class="file-input-wrapper">
+                <button class="upload-btn" onclick="document.getElementById('imageUploadInput').click()" title="上传图片" aria-label="上传图片">+</button>
+                <input type="file" id="imageUploadInput" accept="image/*" onchange="handleImageSelect(event)">
+                <div class="image-preview-wrapper" id="imagePreviewWrapper">
+                    <img id="imagePreview" alt="图片预览">
+                    <button class="clear-image-btn" onclick="clearImage()" id="clearImageBtn" type="button">✕</button>
+                </div>
+            </div>
+
+            <div class="user-input-wrapper">
+                <textarea id="userInput" rows="1" placeholder="请输入消息" onkeydown="handleKeyDown(event)"></textarea>
+            </div>
+
+            <button class="send-btn" onclick="sendMessage()" id="sendBtn">发送</button>
+        </div>
+    </div>
+
+    <!-- Image Modal -->
+    <div id="imageModal" class="image-modal" onclick="closeImageModal()">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <span class="modal-close" onclick="closeImageModal()">&times;</span>
+            <img id="modalImage" src="" alt="放大图片">
+        </div>
+    </div>
+
+    <script>
+        let messages = [];
+        let currentImage = null;
+        let availableModels = [];
+        let selectedModel = null;
+        let thinkingEnabled = false;
+
+        // 页面加载时初始化模型列表
+        async function initializeModels() {
+            availableModels = [
+                {
+                    name: 'adelnazmy2002/Qwen3-VL-8B-Instruct:latest',
+                    sourceKey: 'ollama',
+                    sourceLabel: 'Ollama',
+                    capability: '🎨'
+                },
+                {
+                    name: 'gemma3:latest',
+                    sourceKey: 'ollama',
+                    sourceLabel: 'Ollama',
+                    capability: '🎨'
+                },
+                {
+                    name: 'qwen3.5:9b',
+                    sourceKey: 'ollama',
+                    sourceLabel: 'Ollama',
+                    capability: '🎨'
+                },
+                {
+                    name: 'qwen3:latest',
+                    sourceKey: 'ollama',
+                    sourceLabel: 'Ollama',
+                    capability: '📝'
+                },
+                {
+                    name: 'qwen3.5-27b-gptq-int4',
+                    sourceKey: 'internal',
+                    sourceLabel: 'API',
+                    capability: '🎨'
+                }
+            ];
+
+            const gemmaModel = availableModels.find(m => m.name.toLowerCase().startsWith('gemma3'));
+            selectedModel = gemmaModel || availableModels[0];
+            updateSelectedModelDisplay(selectedModel);
+            renderModelMenu(availableModels);
+
+            console.log(`✓ 预加载了 ${availableModels.length} 个模型`);
+        }
+
+        function renderModelMenu(models) {
+            const menu = document.getElementById('modelMenu');
+            menu.innerHTML = '';
+
+            models.forEach((model) => {
+                const option = document.createElement('button');
+                option.type = 'button';
+                option.className = 'model-option';
+                const sourceClass = model.sourceKey === 'internal' ? 'source-api' : 'source-ollama';
+                option.innerHTML = `
+                    <span class="model-source-badge ${sourceClass}">${model.sourceLabel}</span>
+                    <span class="model-name">${model.name} ${model.capability}</span>
+                `;
+
+                if (selectedModel && selectedModel.name === model.name && selectedModel.sourceKey === model.sourceKey) {
+                    option.classList.add('active');
+                }
+
+                option.onclick = function() {
+                    chooseModel(model);
+                };
+                menu.appendChild(option);
+            });
+        }
+
+        function updateSelectedModelDisplay(model) {
+            const sourceClass = model.sourceKey === 'internal' ? 'source-api' : 'source-ollama';
+            const sourceElement = document.getElementById('selectedModelSource');
+            sourceElement.textContent = model.sourceLabel || '-';
+            sourceElement.className = `model-source-badge ${sourceClass}`;
+            document.getElementById('selectedModelName').textContent = `${model.name || '-'} ${model.capability || '📝'}`;
+        }
+
+        function chooseModel(model) {
+            selectedModel = model;
+            updateSelectedModelDisplay(model);
+            renderModelMenu(availableModels);
+            closeModelMenu();
+        }
+
+        function toggleModelMenu() {
+            const menu = document.getElementById('modelMenu');
+            const button = document.getElementById('modelSelectBtn');
+            const isOpen = menu.classList.contains('show');
+
+            if (isOpen) {
+                closeModelMenu();
+            } else {
+                menu.classList.add('show');
+                button.classList.add('open');
+            }
+        }
+
+        function closeModelMenu() {
+            document.getElementById('modelMenu').classList.remove('show');
+            document.getElementById('modelSelectBtn').classList.remove('open');
+        }
+
+        function onThinkingToggleChange(checked) {
+            thinkingEnabled = Boolean(checked);
+        }
+
+        function handleImageSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    currentImage = e.target.result;
+                    const preview = document.getElementById('imagePreview');
+                    const previewWrapper = document.getElementById('imagePreviewWrapper');
+                    preview.src = currentImage;
+                    previewWrapper.style.display = 'block';
+                    preview.onclick = function(event) {
+                        event.stopPropagation();
+                        openImageModal(currentImage);
+                    };
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function clearImage() {
+            currentImage = null;
+            const preview = document.getElementById('imagePreview');
+            const previewWrapper = document.getElementById('imagePreviewWrapper');
+            preview.src = '';
+            previewWrapper.style.display = 'none';
+            document.getElementById('imageUploadInput').value = '';
+        }
+
+        function handleKeyDown(event) {
+            if (event.isComposing) {
+                return;
+            }
+
+            if (event.key === 'Enter' && !event.ctrlKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        async function sendMessage() {
+            const userInput = document.getElementById('userInput');
+            const message = userInput.value.trim();
+            
+            if (!message && !currentImage) return;
+
+            const model = selectedModel ? selectedModel.name : 'gemma3:latest';
+            const modelSource = selectedModel ? selectedModel.sourceKey : 'ollama';
+            const userMessageContent = message || (currentImage ? '请描述这张图片。' : '');
+
+            if (message || currentImage) {
+                addMessage(message, 'user-message', currentImage);
+            }
+            userInput.value = '';
+            userInput.style.height = '40px';
+
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'message loading';
+            const loadingStart = Date.now();
+            loadingDiv.textContent = '正在生成... 0s';
+            const loadingTimer = setInterval(() => {
+                const elapsedSeconds = Math.floor((Date.now() - loadingStart) / 1000);
+                loadingDiv.textContent = `正在生成... ${elapsedSeconds}s`;
+            }, 1000);
+            messagesContainer.appendChild(loadingDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+            try {
+                let imageBase64 = null;
+                if (currentImage) {
+                    const commaIndex = currentImage.indexOf(',');
+                    if (commaIndex > 0) {
+                        imageBase64 = currentImage.substring(commaIndex + 1);
+                    }
+                }
+
+                // 发送后立即收起输入区图片预览，不再显示本次上传图
+                document.getElementById('imagePreviewWrapper').style.display = 'none';
+
+                const requestBody = {
+                    model: model,
+                    model_source: modelSource,
+                    enable_thinking: thinkingEnabled,
+                    messages: [...messages],
+                    image_base64: imageBase64
+                };
+                
+                if (userMessageContent) {
+                    requestBody.messages.push({ role: 'user', content: userMessageContent });
+                }
+
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    const errorMsg = errorData.error || `服务器响应错误: ${response.status}`;
+                    console.error('Server error:', errorMsg);
+                    throw new Error(errorMsg);
+                }
+
+                const data = await response.json();
+                const aiResponse = data.response || '没有收到响应';
+
+                const responseTime = Number(data.response_time || 0);
+                const promptTokens = Number(data.prompt_tokens || 0);
+                const completionTokens = Number(data.completion_tokens || 0);
+                const evalDurationMs = Number(data.eval_duration || 0);
+
+                let tokensPerSecond = 0;
+                if (evalDurationMs > 0) {
+                    tokensPerSecond = completionTokens / (evalDurationMs / 1000);
+                } else if (responseTime > 0) {
+                    tokensPerSecond = completionTokens / responseTime;
+                }
+
+                const aiMeta = {
+                    model: data.model || model,
+                    modelSource: data.model_source || modelSource,
+                    responseTime: responseTime,
+                    tokensPerSecond: tokensPerSecond,
+                    promptTokens: promptTokens,
+                    completionTokens: completionTokens,
+                    thinkingRequested: Boolean(data.thinking_requested ?? thinkingEnabled)
+                };
+
+                messagesContainer.removeChild(loadingDiv);
+                addMessage(aiResponse, 'ai-message', null, aiMeta);
+
+                if (userMessageContent) {
+                    messages.push({ role: 'user', content: userMessageContent });
+                }
+                messages.push({ role: 'assistant', content: aiResponse });
+
+                clearImage();
+
+            } catch (error) {
+                if (messagesContainer.contains(loadingDiv)) {
+                    messagesContainer.removeChild(loadingDiv);
+                }
+                addMessage('❌ 错误：' + error.message, 'ai-message');
+                console.error('Error:', error);
+            } finally {
+                clearInterval(loadingTimer);
+            }
+        }
+
+        function addMessage(content, className, imageData = null, meta = null) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${className}`;
+            
+            if (content) {
+                const textSpan = document.createElement('div');
+                textSpan.textContent = content;
+                messageDiv.appendChild(textSpan);
+            }
+            
+            if (imageData) {
+                const img = document.createElement('img');
+                img.src = imageData;
+                img.onclick = function(e) {
+                    e.stopPropagation();
+                    openImageModal(imageData);
+                };
+                messageDiv.appendChild(img);
+            }
+            
+            messagesContainer.appendChild(messageDiv);
+
+            if (className === 'ai-message' && meta) {
+                const metricsDiv = document.createElement('div');
+                metricsDiv.className = 'ai-metrics';
+                const sourceLabel = meta.modelSource === 'internal' ? 'API' : 'Ollama';
+                const sourceClass = meta.modelSource === 'internal' ? 'source-api' : 'source-ollama';
+                metricsDiv.innerHTML = [
+                    `📦 <span class="metrics-source-badge ${sourceClass}">${sourceLabel}</span> ${meta.model || '-'}`,
+                    `⏱️ 耗时: ${(meta.responseTime || 0).toFixed(2)}s`,
+                    `⚡ token/s: ${(meta.tokensPerSecond || 0).toFixed(2)}`,
+                    `⬆️ ${(meta.promptTokens || 0)} tokens`,
+                    `⬇️ ${(meta.completionTokens || 0)} tokens`,
+                    `🧠 ${meta.thinkingRequested ? 'ON' : 'OFF'}`
+                ].join('  ');
+                messagesContainer.appendChild(metricsDiv);
+            }
+
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function openImageModal(imageSrc) {
+            const modal = document.getElementById('imageModal');
+            const modalImage = document.getElementById('modalImage');
+            modalImage.src = imageSrc;
+            modal.classList.add('show');
+        }
+
+        function closeImageModal() {
+            const modal = document.getElementById('imageModal');
+            modal.classList.remove('show');
+        }
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeImageModal();
+                closeModelMenu();
+            }
+        });
+
+        document.addEventListener('click', function(event) {
+            const wrapper = document.getElementById('customModelSelect');
+            if (wrapper && !wrapper.contains(event.target)) {
+                closeModelMenu();
+            }
+        });
+
+        document.getElementById('userInput').addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+
+        document.addEventListener('DOMContentLoaded', initializeModels);
+    </script>
+</body>
+</html>
+
+
+
+
